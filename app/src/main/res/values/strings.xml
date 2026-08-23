@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">ANC Switch</string>
+    <string name="anc_tile_label">ANC Mode</string>
 </resources>
