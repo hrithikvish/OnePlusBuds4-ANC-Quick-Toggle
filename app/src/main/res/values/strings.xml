@@ -1,4 +1,52 @@
 <resources>
     <string name="app_name">ANC Switch</string>
     <string name="anc_tile_label">ANC Mode</string>
+    <string name="tile_subtitle_default">Tap to choose</string>
+
+    <!-- Console screen (MainActivity) -->
+    <string name="console_subtitle">Connection console</string>
+    <string name="console_version_label">v1.0</string>
+
+    <string name="no_permission_title">Bluetooth access needed</string>
+    <string name="no_permission_body">ANCSwitch reads your bonded devices to find the Buds 4 and open a control socket. Nothing is scanned in the background.</string>
+    <string name="grant_bluetooth_access">Grant Bluetooth access</string>
+
+    <string name="bluetooth_off_title">Bluetooth is off</string>
+    <string name="bluetooth_off_body">Turn on Bluetooth so ANCSwitch can find and connect to your Buds 4.</string>
+    <string name="turn_on_bluetooth">Turn on Bluetooth</string>
+
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_connection_lost">Connection lost</string>
+    <string name="status_connected_to">Connected · %1$s</string>
+    <string name="status_not_connected">Not connected</string>
+
+    <string name="refresh_bonded">Refresh bonded</string>
+    <string name="disconnect">Disconnect</string>
+
+    <string name="section_bonded_devices">Bonded devices</string>
+    <string name="no_bonded_devices">No bonded devices found. Pair the Buds 4 in system Bluetooth settings, then refresh.</string>
+
+    <string name="device_connected">Connected</string>
+    <string name="reconnect">Reconnect</string>
+    <string name="connect">Connect</string>
+
+    <string name="section_send_anc_mode">Send ANC mode</string>
+    <string name="section_log">Log</string>
+    <string name="log_idle">— idle —</string>
+
+    <string name="connection_dropped">Connection dropped unexpectedly</string>
+    <string name="retry">Retry</string>
+
+    <!-- Quick-tile picker sheet (AncModePickerActivity) -->
+    <string name="picker_connecting">Connecting…</string>
+    <string name="picker_permission_needed">Bluetooth permission needed</string>
+    <string name="picker_no_buds_found">No paired Buds found</string>
+    <string name="picker_connected">Connected</string>
+    <string name="picker_disconnected">Disconnected</string>
+    <string name="picker_title">ANC Mode</string>
+    <string name="picker_grant_permission">Grant Bluetooth permission</string>
+    <string name="picker_connected_device">Connected · %1$s</string>
+
+    <!-- Shared mode display label override (BudsUtil) -->
+    <string name="mode_label_noise_cancellation">Noise Cancellation</string>
 </resources>
