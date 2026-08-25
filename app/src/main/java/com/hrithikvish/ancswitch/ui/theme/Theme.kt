@@ -1,58 +1,87 @@
 package com.hrithikvish.ancswitch.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
+val LocalAncColors = staticCompositionLocalOf { AncDarkPalette }
+val LocalAncTextStyles = staticCompositionLocalOf { AncTextStylesInstance }
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+/** `MaterialTheme`-style accessor: `AncTheme.colors.paper0`, `AncTheme.type.h1`, `AncTheme.shapes.lg`. */
+object AncTheme {
+    val colors: AncPalette
+        @Composable get() = LocalAncColors.current
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
-)
+    val type: AncTextStyles
+        @Composable get() = LocalAncTextStyles.current
 
+    val shapes: AncShapes = AncShapes
+}
+
+/**
+ * Monochrome design system from ancswitch.html. Deliberately has no `dynamicColor` toggle —
+ * the "selection = inversion" interaction language only works because nothing else on screen
+ * carries color, so wallpaper-derived Material You color is not an option here.
+ */
 @Composable
 fun ANCSwitchTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
+    val palette = if (darkTheme) AncDarkPalette else AncLightPalette
 
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    val materialColorScheme = if (darkTheme) {
+        darkColorScheme(
+            background = palette.ink0,
+            surface = palette.ink1,
+            surfaceVariant = palette.ink2,
+            primary = palette.paper0,
+            onPrimary = palette.ink0,
+            secondary = palette.paper1,
+            onSecondary = palette.ink0,
+            onBackground = palette.paper0,
+            onSurface = palette.paper0,
+            onSurfaceVariant = palette.paper1,
+            outline = palette.line,
+            outlineVariant = palette.lineSoft,
+            error = palette.paper0,
+            onError = palette.ink0,
+            errorContainer = palette.ink3,
+            onErrorContainer = palette.paper0,
+        )
+    } else {
+        lightColorScheme(
+            background = palette.ink0,
+            surface = palette.ink1,
+            surfaceVariant = palette.ink2,
+            primary = palette.paper0,
+            onPrimary = palette.ink0,
+            secondary = palette.paper1,
+            onSecondary = palette.ink0,
+            onBackground = palette.paper0,
+            onSurface = palette.paper0,
+            onSurfaceVariant = palette.paper1,
+            outline = palette.line,
+            outlineVariant = palette.lineSoft,
+            error = palette.paper0,
+            onError = palette.ink0,
+            errorContainer = palette.ink3,
+            onErrorContainer = palette.paper0,
+        )
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalAncColors provides palette,
+        LocalAncTextStyles provides AncTextStylesInstance,
+    ) {
+        MaterialTheme(
+            colorScheme = materialColorScheme,
+            typography = AncMaterialTypography,
+            content = content,
+        )
+    }
 }
