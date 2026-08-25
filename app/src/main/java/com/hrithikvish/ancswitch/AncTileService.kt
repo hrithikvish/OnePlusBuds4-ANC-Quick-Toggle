@@ -49,7 +49,7 @@ class AncTileService : TileService() {
         } else {
             Tile.STATE_INACTIVE
         }
-        tile.subtitle = mode?.let { BudsUtil.displayLabel(it) } ?: "Tap to choose"
+        tile.subtitle = mode?.let { BudsUtil.displayLabel(this, it) } ?: getString(R.string.tile_subtitle_default)
         tile.updateTile()
     }
 

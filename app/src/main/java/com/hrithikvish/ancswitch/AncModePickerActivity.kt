@@ -1,83 +1,96 @@
 package com.hrithikvish.ancswitch
 
+import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.service.quicksettings.TileService
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.hrithikvish.ancswitch.ui.components.AncIcons
+import com.hrithikvish.ancswitch.ui.theme.ANCSwitchTheme
+import com.hrithikvish.ancswitch.ui.theme.AncEase
+import com.hrithikvish.ancswitch.ui.theme.AncPalette
+import com.hrithikvish.ancswitch.ui.theme.AncShapes
+import com.hrithikvish.ancswitch.ui.theme.AncSpring
+import com.hrithikvish.ancswitch.ui.theme.AncTheme
 
 /**
- * Small floating dialog launched from the Quick Settings tile — lists the everyday ANC
- * modes for one-tap selection instead of cycling through them. Owns its own
- * [BudsConnection] for as long as it's on screen; connects on create, disconnects on
- * destroy.
+ * Dialog launched from the Quick Settings tile — lists the everyday ANC modes for one-tap
+ * selection instead of cycling through them. Owns its own [BudsConnection] for as long as
+ * it's on screen; connects on create, disconnects on destroy.
  */
 class AncModePickerActivity : ComponentActivity(), BudsConnection.Listener {
 
     private var connection: BudsConnection? = null
     private var pendingMode: BudsProtocol.AncMode? = null
-    private val status = mutableStateOf("Connecting…")
+    private val status = mutableStateOf("")
+    private val deviceName = mutableStateOf<String?>(null)
+    private val isConnected = mutableStateOf(false)
     private val sentMode = mutableStateOf<BudsProtocol.AncMode?>(null)
     private val needsPermission = mutableStateOf(false)
 
+    @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         sentMode.value = BudsUtil.lastSavedMode(this)
+        status.value = getString(R.string.picker_connecting)
 
         if (!BudsUtil.hasBtPermission(this)) {
             needsPermission.value = true
-            status.value = "Bluetooth permission needed"
+            status.value = getString(R.string.picker_permission_needed)
         } else {
             BudsUtil.findBudsDevice(this) { device ->
                 if (device == null) {
-                    status.value = "No paired Buds found"
+                    status.value = getString(R.string.picker_no_buds_found)
                 } else {
+                    deviceName.value = device.name ?: device.address
                     connection = BudsConnection(this).also { it.connect(device) }
                 }
             }
         }
 
         setContent {
-            AncPickerTheme {
-                PickerScreen(
+            ANCSwitchTheme {
+                PickerDialog(
                     status = status.value,
+                    deviceName = deviceName.value,
+                    isConnected = isConnected.value,
                     sentMode = sentMode.value,
                     needsPermission = needsPermission.value,
                     onPick = ::pick,
@@ -129,7 +142,8 @@ class AncModePickerActivity : ComponentActivity(), BudsConnection.Listener {
     override fun onLog(line: String) {}
 
     override fun onConnected() {
-        status.value = "Connected"
+        status.value = getString(R.string.picker_connected)
+        isConnected.value = true
         val toSend = pendingMode
         if (toSend != null) {
             pendingMode = null
@@ -140,22 +154,11 @@ class AncModePickerActivity : ComponentActivity(), BudsConnection.Listener {
     }
 
     override fun onDisconnected(reason: String?) {
-        status.value = reason ?: "Disconnected"
+        isConnected.value = false
+        status.value = reason ?: getString(R.string.picker_disconnected)
     }
 
     override fun onModeRead(mode: BudsProtocol.AncMode) {}
-}
-
-@Composable
-private fun AncPickerTheme(content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val dark = isSystemInDarkTheme()
-    val colorScheme: ColorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else {
-        if (dark) darkColorScheme() else lightColorScheme()
-    }
-    MaterialTheme(colorScheme = colorScheme, content = content)
 }
 
 // ANC_STRONG (0x08) was never physically confirmed and turned out to be a no-op on the
@@ -168,79 +171,85 @@ private val PICKER_MODES = listOf(
 )
 
 @Composable
-private fun PickerScreen(
+private fun PickerDialog(
     status: String,
+    deviceName: String?,
+    isConnected: Boolean,
     sentMode: BudsProtocol.AncMode?,
     needsPermission: Boolean,
     onPick: (BudsProtocol.AncMode) -> Unit,
     onOpenApp: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val colors = AncTheme.colors
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
+            .background(colors.ink0.copy(alpha = 0.55f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = onDismiss
+                onClick = onDismiss,
             ),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
-        Card(
+        Column(
             modifier = Modifier
-                .width(300.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp)
+                .clip(AncShapes.lg)
+                .background(colors.ink2)
+                .border(1.dp, colors.line, AncShapes.lg)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { /* swallow taps so they don't fall through to the scrim */ },
-            shape = RoundedCornerShape(32.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    indication = null,
+                ) { /* swallow taps so they don't fall through to the scrim */ }
+                .padding(horizontal = 18.dp, vertical = 18.dp),
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    "ANC Mode",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 16.dp)
+            Text(
+                stringResource(R.string.picker_title),
+                style = AncTheme.type.bodyStrong,
+                color = colors.paper0,
+                modifier = Modifier.padding(start = 2.dp, bottom = 12.dp),
+            )
+
+            if (needsPermission) {
+                DialogOption(
+                    label = stringResource(R.string.picker_grant_permission),
+                    icon = AncIcons.BrokenSignal,
+                    selected = false,
+                    colors = colors,
+                    onClick = onOpenApp,
                 )
-                if (needsPermission) {
-                    ModeRow(
-                        label = "Grant Bluetooth permission",
-                        selected = false,
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        onClick = onOpenApp
+            } else {
+                val context = LocalContext.current
+                PICKER_MODES.forEach { mode ->
+                    DialogOption(
+                        label = BudsUtil.displayLabel(context, mode),
+                        icon = AncIcons.forMode(mode),
+                        selected = mode == sentMode,
+                        colors = colors,
+                        onClick = { onPick(mode) },
                     )
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PICKER_MODES.forEach { mode ->
-                            val selected = mode == sentMode
-                            ModeRow(
-                                label = BudsUtil.displayLabel(mode),
-                                selected = selected,
-                                containerColor = if (selected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceContainerHigh
-                                },
-                                contentColor = if (selected) {
-                                    MaterialTheme.colorScheme.onPrimary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
-                                onClick = { onPick(mode) }
-                            )
-                        }
-                    }
                 }
+            }
+
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.padding(start = 2.dp, top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(if (isConnected) colors.paper0 else colors.paper3),
+                )
                 Text(
-                    status,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, top = 16.dp)
+                    if (isConnected) stringResource(R.string.picker_connected_device, deviceName ?: "") else status,
+                    style = AncTheme.type.eyebrow,
+                    color = colors.paper3,
                 )
             }
         }
@@ -248,26 +257,36 @@ private fun PickerScreen(
 }
 
 @Composable
-private fun ModeRow(
+private fun DialogOption(
     label: String,
+    icon: ImageVector,
     selected: Boolean,
-    containerColor: Color,
-    contentColor: Color,
+    colors: AncPalette,
     onClick: () -> Unit,
 ) {
-    Box(
+    val bg by animateColorAsState(if (selected) colors.paper0 else colors.ink3, tween(300, easing = AncEase), label = "sheetOptionBg")
+    val fg by animateColorAsState(if (selected) colors.ink0 else colors.paper1, tween(300, easing = AncEase), label = "sheetOptionFg")
+    val checkAlpha by animateFloatAsState(if (selected) 1f else 0f, tween(300, easing = AncSpring), label = "sheetCheckAlpha")
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(containerColor)
+            .padding(bottom = 8.dp)
+            .clip(AncShapes.md)
+            .background(bg)
+            .border(1.dp, if (selected) bg else colors.line, AncShapes.md)
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 18.dp)
+            .padding(horizontal = 13.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
-        Text(
-            label,
-            fontSize = 17.sp,
-            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Bold,
-            color = contentColor
+        Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(16.dp))
+        Text(label, style = AncTheme.type.buttonLabel, color = fg, modifier = Modifier.weight(1f))
+        Icon(
+            AncIcons.Check,
+            contentDescription = null,
+            tint = fg,
+            modifier = Modifier.size(16.dp).alpha(checkAlpha),
         )
     }
 }

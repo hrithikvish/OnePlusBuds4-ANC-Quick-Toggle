@@ -52,8 +52,12 @@ object BudsUtil {
      * User-facing name for a mode in the tile/picker UI — distinct from [BudsProtocol.AncMode.label],
      * which stays as the plain protocol-table name for the MainActivity debug screen.
      */
-    fun displayLabel(mode: BudsProtocol.AncMode): String =
-        if (mode == BudsProtocol.AncMode.ANC_WEAK) "Noise Cancellation" else mode.label
+    fun displayLabel(context: Context, mode: BudsProtocol.AncMode): String =
+        if (mode == BudsProtocol.AncMode.ANC_WEAK) {
+            context.getString(R.string.mode_label_noise_cancellation)
+        } else {
+            mode.label
+        }
 
     /** The mode last successfully sent, persisted so the tile and picker agree on it across launches. */
     fun lastSavedMode(context: Context): BudsProtocol.AncMode? {
