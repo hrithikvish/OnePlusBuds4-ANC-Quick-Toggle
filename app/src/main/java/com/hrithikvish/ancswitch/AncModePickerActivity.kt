@@ -1,13 +1,12 @@
 package com.hrithikvish.ancswitch
 
 import android.annotation.SuppressLint
-import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
-import android.service.quicksettings.TileService
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -40,6 +39,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.hrithikvish.ancswitch.ui.components.AncIcons
 import com.hrithikvish.ancswitch.ui.theme.ANCSwitchTheme
 import com.hrithikvish.ancswitch.ui.theme.AncEase
@@ -111,7 +112,7 @@ class AncModePickerActivity : ComponentActivity(), BudsConnection.Listener {
         val conn = connection
         if (conn?.isConnected == true) {
             conn.sendMode(mode)
-            saveMode(mode)
+            BudsUtil.saveMode(this, mode)
             finishSoon()
         } else {
             pendingMode = mode
@@ -124,17 +125,10 @@ class AncModePickerActivity : ComponentActivity(), BudsConnection.Listener {
     }
 
     private fun finishSoon() {
-        window.decorView.postDelayed({ finish() }, 250)
-    }
-
-    private fun saveMode(mode: BudsProtocol.AncMode) {
-        getSharedPreferences(AncTileService.PREFS_NAME, MODE_PRIVATE)
-            .edit()
-            .putString(AncTileService.KEY_LAST_MODE, mode.name)
-            .apply()
-        // The tile only refreshes on its own onStartListening() lifecycle — nudge it to
-        // re-read the saved mode now instead of waiting for the next organic panel open.
-        TileService.requestListeningState(this, ComponentName(this, AncTileService::class.java))
+        lifecycleScope.launch {
+            delay(250)
+            finish()
+        }
     }
 
     // --- BudsConnection.Listener — all callbacks land on the main thread already ---
@@ -148,8 +142,10 @@ class AncModePickerActivity : ComponentActivity(), BudsConnection.Listener {
         if (toSend != null) {
             pendingMode = null
             connection?.sendMode(toSend)
-            saveMode(toSend)
+            BudsUtil.saveMode(this, toSend)
             finishSoon()
+        } else {
+            connection?.readMode()
         }
     }
 
@@ -158,7 +154,9 @@ class AncModePickerActivity : ComponentActivity(), BudsConnection.Listener {
         status.value = reason ?: getString(R.string.picker_disconnected)
     }
 
-    override fun onModeRead(mode: BudsProtocol.AncMode) {}
+    override fun onModeRead(mode: BudsProtocol.AncMode) {
+        sentMode.value = mode
+    }
 }
 
 // ANC_STRONG (0x08) was never physically confirmed and turned out to be a no-op on the

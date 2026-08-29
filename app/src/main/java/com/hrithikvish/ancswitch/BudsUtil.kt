@@ -5,10 +5,13 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.service.quicksettings.TileService
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 
 object BudsUtil {
     fun hasBtPermission(context: Context): Boolean {
@@ -64,5 +67,16 @@ object BudsUtil {
         val name = context.getSharedPreferences(AncTileService.PREFS_NAME, Context.MODE_PRIVATE)
             .getString(AncTileService.KEY_LAST_MODE, null) ?: return null
         return BudsProtocol.AncMode.entries.firstOrNull { it.name == name }
+    }
+
+    /** Persists the mode and nudges the Quick Settings tile to refresh. */
+    fun saveMode(context: Context, mode: BudsProtocol.AncMode) {
+        context.getSharedPreferences(AncTileService.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit {
+                putString(AncTileService.KEY_LAST_MODE, mode.name)
+            }
+        // The tile only refreshes on its own onStartListening() lifecycle — nudge it to
+        // re-read the saved mode now instead of waiting for the next organic panel open.
+        TileService.requestListeningState(context, ComponentName(context, AncTileService::class.java))
     }
 }

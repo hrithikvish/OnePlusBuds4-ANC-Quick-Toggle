@@ -9,7 +9,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -37,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.hrithikvish.ancswitch.ui.components.AncAppBar
 import com.hrithikvish.ancswitch.ui.components.AncGhostButton
 import com.hrithikvish.ancswitch.ui.components.AncIcons
@@ -81,13 +85,27 @@ class MainActivity : ComponentActivity() {
      * flips [ConsoleUiState.dropped] when a previously-connected session dies unexpectedly. */
     private var explicitDisconnect = false
 
+    /** Tracks if we are currently attempting a single automatic reconnection after a drop. */
+    private var isAutoRetrying = false
+
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == AncTileService.KEY_LAST_MODE) {
+            BudsUtil.lastSavedMode(this)?.let { mode ->
+                uiState.value = uiState.value.copy(currentMode = mode)
+            }
+        }
+    }
+
     /** Keeps [ConsoleUiState.bluetoothEnabled] live if the user flips the radio from Quick
      * Settings while this screen is open, instead of only checking once at launch. */
     private val bluetoothStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val enabled = isBluetoothEnabled()
             uiState.value = uiState.value.copy(bluetoothEnabled = enabled)
-            if (enabled) refreshBondedDevices()
+            if (enabled) {
+                refreshBondedDevices()
+                tryAutoConnect()
+            }
         }
     }
 
@@ -103,7 +121,11 @@ class MainActivity : ComponentActivity() {
         uiState.value = uiState.value.copy(
             hasPermission = hasBtPermission(),
             bluetoothEnabled = isBluetoothEnabled(),
+            currentMode = BudsUtil.lastSavedMode(this)
         )
+        getSharedPreferences(AncTileService.PREFS_NAME, MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener(prefsListener)
+        
         ContextCompat.registerReceiver(
             this,
             bluetoothStateReceiver,
@@ -115,22 +137,43 @@ class MainActivity : ComponentActivity() {
             override fun onLog(line: String) = appendLog(line)
             override fun onConnected() {
                 uiState.value = uiState.value.copy(connected = true, isLinking = false, dropped = false)
+                isAutoRetrying = false
                 appendLog("-- connected --")
+                connection.readMode()
             }
             override fun onDisconnected(reason: String?) {
                 val wasConnected = uiState.value.connected
                 val stillDropped = wasConnected && !explicitDisconnect
+
+                if (stillDropped && !isAutoRetrying) {
+                    val device = uiState.value.selectedDevice
+                    if (device != null) {
+                        isAutoRetrying = true
+                        appendLog("-- dropped ($reason), auto-retrying... --")
+                        lifecycleScope.launch {
+                            delay(1000)
+                            if (!explicitDisconnect) {
+                                uiState.value = uiState.value.copy(isLinking = true)
+                                connection.connect(device)
+                            }
+                        }
+                        return
+                    }
+                }
+
                 uiState.value = uiState.value.copy(
                     connected = false,
                     isLinking = false,
                     dropped = stillDropped,
                     dropReason = if (stillDropped) reason else uiState.value.dropReason,
                 )
+                isAutoRetrying = false
                 explicitDisconnect = false
                 appendLog("-- disconnected${if (reason != null) " ($reason)" else ""} --")
             }
             override fun onModeRead(mode: BudsProtocol.AncMode) {
                 uiState.value = uiState.value.copy(currentMode = mode)
+                BudsUtil.saveMode(this@MainActivity, mode)
                 appendLog("-- device reports mode: ${mode.label} --")
             }
         })
@@ -140,7 +183,10 @@ class MainActivity : ComponentActivity() {
         ) {
             val granted = hasBtPermission()
             uiState.value = uiState.value.copy(hasPermission = granted)
-            if (granted) refreshBondedDevices()
+            if (granted) {
+                refreshBondedDevices()
+                tryAutoConnect()
+            }
         }
 
         setContent {
@@ -162,6 +208,7 @@ class MainActivity : ComponentActivity() {
                     onConnect = { device ->
                         if (hasBtPermission()) {
                             explicitDisconnect = false
+                            isAutoRetrying = false
                             uiState.value = uiState.value.copy(
                                 selectedDevice = device,
                                 isLinking = true,
@@ -174,12 +221,22 @@ class MainActivity : ComponentActivity() {
                         explicitDisconnect = true
                         connection.disconnect()
                     },
-                    onSendMode = { mode -> connection.sendMode(mode) }
+                    onSendMode = { mode ->
+                        connection.sendMode(mode)
+                        BudsUtil.saveMode(this@MainActivity, mode)
+                        uiState.value = uiState.value.copy(currentMode = mode)
+                    }
                 )
             }
         }
 
-        if (hasBtPermission()) refreshBondedDevices()
+        if (hasBtPermission()) {
+            refreshBondedDevices()
+            tryAutoConnect()
+        }
+
+        // Nudge the tile to reflect the last known state on launch.
+        BudsUtil.lastSavedMode(this)?.let { BudsUtil.saveMode(this, it) }
     }
 
     private fun hasBtPermission(): Boolean {
@@ -204,10 +261,27 @@ class MainActivity : ComponentActivity() {
         return manager?.adapter?.isEnabled == true
     }
 
+    private fun tryAutoConnect() {
+        if (!hasBtPermission() || !isBluetoothEnabled() || uiState.value.connected || uiState.value.isLinking) return
+        BudsUtil.findBudsDevice(this) { device ->
+            if (device != null && !uiState.value.connected && !uiState.value.isLinking) {
+                explicitDisconnect = false
+                uiState.value = uiState.value.copy(
+                    selectedDevice = device,
+                    isLinking = true,
+                    dropped = false,
+                )
+                connection.connect(device)
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         connection.disconnect()
         unregisterReceiver(bluetoothStateReceiver)
+        getSharedPreferences(AncTileService.PREFS_NAME, MODE_PRIVATE)
+            .unregisterOnSharedPreferenceChangeListener(prefsListener)
     }
 }
 

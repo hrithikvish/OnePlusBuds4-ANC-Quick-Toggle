@@ -144,7 +144,6 @@ private fun AncButtonBase(
             .alpha(if (!enabled && dimWhenDisabled) 0.35f else 1f)
             .clickable(
                 interactionSource = interactionSource,
-                indication = null,
                 enabled = enabled,
                 onClick = onClick,
             )

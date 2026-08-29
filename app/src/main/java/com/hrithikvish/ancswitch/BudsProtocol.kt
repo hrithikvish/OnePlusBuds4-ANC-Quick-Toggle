@@ -13,6 +13,7 @@ object BudsProtocol {
 
     const val CMD_NOISE_REDUCTION = 0x0404
     const val CMD_NOISE_REDUCTION_ACK = CMD_NOISE_REDUCTION or 0x8000
+    const val CMD_STATUS_PUSH = 0x0204
 
     // TRANSPARENCY/ANC_WEAK bitmasks confirmed swapped from the decompiled HeyMelody source by
     // two independent physical on-device tests. The decompile is HeyMelody 116.7.0; the phone
@@ -38,6 +39,20 @@ object BudsProtocol {
     fun buildModeSwitchFrame(mode: AncMode): ByteArray {
         val seq = nextSeq()
         val payload = byteArrayOf(0x01, 0x01, mode.bitmask.toByte())
+        return byteArrayOf(
+            (CMD_NOISE_REDUCTION and 0xFF).toByte(),
+            ((CMD_NOISE_REDUCTION shr 8) and 0xFF).toByte(),
+            seq.toByte(),
+            (payload.size and 0xFF).toByte(),
+            ((payload.size shr 8) and 0xFF).toByte(),
+            *payload
+        )
+    }
+
+    /** Builds the 7-byte frame for querying current noise reduction state: 01 02 */
+    fun buildModeReadFrame(): ByteArray {
+        val seq = nextSeq()
+        val payload = byteArrayOf(0x01, 0x02)
         return byteArrayOf(
             (CMD_NOISE_REDUCTION and 0xFF).toByte(),
             ((CMD_NOISE_REDUCTION shr 8) and 0xFF).toByte(),

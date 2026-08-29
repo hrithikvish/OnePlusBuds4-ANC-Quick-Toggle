@@ -99,7 +99,11 @@ private fun ModeTile(
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(if (pressed) 0.97f else 1f, tween(150, easing = AncSpring), label = "tilePress")
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = tween(150, easing = AncSpring),
+        label = "tilePress"
+    )
 
     Box(
         modifier = modifier
@@ -109,7 +113,6 @@ private fun ModeTile(
             .border(1.dp, borderColor, AncShapes.md)
             .clickable(
                 interactionSource = interactionSource,
-                indication = null,
                 enabled = enabled,
                 onClick = onClick,
             )
