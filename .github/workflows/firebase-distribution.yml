@@ -48,6 +48,6 @@ jobs:
         with:
           appId: "1:1017336057532:android:b488004ee3380ce7d44ab9"
           serviceCredentialsFileContent: ${{ secrets.CREDENTIAL_FILE_CONTENT }}
-          testers: "internal"
+          groups: internal
           file: app/build/outputs/apk/release/app-arm64-v8a-release.apk
           releaseNotesFile: release_notes.txt
